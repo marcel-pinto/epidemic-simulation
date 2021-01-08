@@ -3,13 +3,7 @@ import matplotlib.pyplot as plt
 from random import choices, sample
 
 
-class Pandemic_Network:
-    N = 10000
-    k = 6
-    r = 0.1
-    p = 0.1
-    d = 6
-    number_of_initial_infected = 10
+class Epidemic_Network:
     infected = {
         "status": "infected",
         "days_with_disease": 1
@@ -21,18 +15,35 @@ class Pandemic_Network:
     cumulative_cases = []
     daily_cases = [0]
 
-    def __init__(self):
-        self.generate_pandemic_network(self.N, self.k, self.p)
+    def __init__(self,
+                 number_of_nodes,
+                 k,
+                 infection_rate,
+                 p,
+                 days_until_recovery,
+                 number_of_initial_infected,
+                 save_steps=False
+                 ):
+        self.number_of_nodes = number_of_nodes
+        self.k = k
+        self.infection_rate = infection_rate
+        self.p = p
+        self.days_until_recovery = days_until_recovery
+        self.number_of_initial_infected = number_of_initial_infected
+        self.generate_epidemic_network(self.number_of_nodes, self.k, self.p)
+
         num_edges = self.G.number_of_edges()
         num_nodes = self.G.number_of_nodes()
         average_degree = num_edges / num_nodes
         print(f"Average degree: {average_degree}")
+
         self.distribute_initial_infection(self.number_of_initial_infected)
         day = 1
-        plt.figure(figsize=(5, 5))
+        if save_steps:
+            plt.figure(figsize=(5, 5))
         while True:
             infected = self.get_by_status("infected")
-            self.interact(day)
+            self.interact(day, save_steps)
             self.count_cumulative_cases()
             self.count_daily_cases()
             self.update_disease_progress()
@@ -59,7 +70,7 @@ class Pandemic_Network:
 
     def update_disease_progress(self):
         def parse_attr(attributes):
-            if attributes["days_with_disease"] >= self.d:
+            if attributes["days_with_disease"] >= self.days_until_recovery:
                 return self.recovered
 
             attributes["days_with_disease"] += 1
@@ -70,38 +81,19 @@ class Pandemic_Network:
                             if attributes["status"] == "infected"}
         nx.set_node_attributes(self.G, values=updated_infected)
 
-    def generate_pandemic_network(self, N: int, k: int, p: float) -> nx.Graph:
+    def generate_epidemic_network(self, N: int, k: int, p: float) -> nx.Graph:
         self.G = nx.watts_strogatz_graph(N, k, p)
         nx.set_node_attributes(self.G, values="susceptible", name="status")
 
     def infection_occurred(self):
-        return choices([True, False], weights=[self.r, 1 - self.r])[0]
+        return choices([True, False],
+                       weights=[self.infection_rate, 1 - self.infection_rate])[0]
 
     def distribute_initial_infection(self, number_of_infections: int) -> None:
         whole_network = tuple(self.G.nodes())
         random_infected_people = sample(whole_network, number_of_infections)
         for person in random_infected_people:
             nx.set_node_attributes(self.G, values={person: self.infected})
-
-    def draw(self, day):
-        plt.title(f"Day: {day}")
-        nodesize = 40
-
-        infected = self.get_by_status("infected")
-        susceptibles = self.get_by_status("susceptible")
-        recovered = self.get_by_status("recovered")
-
-        pos = nx.circular_layout(self.G)
-        nx.draw_networkx_nodes(
-            self.G, pos=pos, nodelist=susceptibles, node_color="blue", label="Susceptibles", node_size=nodesize)  # , node_size=50,
-        nx.draw_networkx_nodes(
-            self.G, pos=pos, nodelist=infected, node_color="red", label="Infected", node_size=nodesize)
-        nx.draw_networkx_nodes(
-            self.G, pos=pos, nodelist=recovered, node_color="green", label="Recovered", node_size=nodesize)
-        nx.draw_networkx_edges(self.G, pos=pos, edge_color="gray")
-        plt.legend(scatterpoints=1)
-        plt.savefig(f"{day}-evolution.png")
-        plt.clf()
 
     def get_by_status(self, status):
         return [person for person,
@@ -130,7 +122,37 @@ class Pandemic_Network:
         ax1.plot(self.cumulative_cases, color="black")
         ax2.plot(self.daily_cases, color="black")
         plt.savefig(
-            f"cases_vs_days_N={self.N}_k={self.k}_p={self.p}_d={self.d}_r={self.r}.png")
+            f"cases_vs_days_N={self.number_of_nodes}"
+            f"_k={self.k}_p={self.p}_d={self.days_until_recovery}"
+            f"_r={self.infection_rate}.png")
+
+    def draw(self, day):
+        plt.title(f"Day: {day}")
+        nodesize = 40
+
+        infected = self.get_by_status("infected")
+        susceptibles = self.get_by_status("susceptible")
+        recovered = self.get_by_status("recovered")
+
+        pos = nx.circular_layout(self.G)
+        nx.draw_networkx_nodes(
+            self.G, pos=pos, nodelist=susceptibles, node_color="blue", label="Susceptibles", node_size=nodesize)  # , node_size=50,
+        nx.draw_networkx_nodes(
+            self.G, pos=pos, nodelist=infected, node_color="red", label="Infected", node_size=nodesize)
+        nx.draw_networkx_nodes(
+            self.G, pos=pos, nodelist=recovered, node_color="green", label="Recovered", node_size=nodesize)
+        nx.draw_networkx_edges(self.G, pos=pos, edge_color="gray")
+        plt.legend(scatterpoints=1)
+        plt.savefig(f"{day}-evolution.png")
+        plt.clf()
 
 
-Pandemic_Network()
+Epidemic_Network(
+    number_of_nodes=100,
+    k=8,
+    infection_rate=0.1,
+    p=0.4,
+    days_until_recovery=6,
+    number_of_initial_infected=10,
+    save_steps=True
+)
