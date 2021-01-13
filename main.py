@@ -15,59 +15,45 @@ class Epidemic_Network:
         "status": "recovered",
     }
     G: nx.Graph
-    cumulative_cases = []
-    daily_cases = []
-
-    D = None
-    k = None
-    p = None
 
     def __init__(self,
                  infection_rate,
                  days_until_recovery,
                  number_of_initial_infected,
-                 save_steps=False
+                 number_of_nodes,
+                 D,
+                 p,
+                 save_steps=False,
                  ):
         self.infection_rate = infection_rate
         self.days_until_recovery = days_until_recovery
-        self.number_of_initial_infected = number_of_initial_infected
-        self.daily_cases.append(number_of_initial_infected)
-        self.save_steps = save_steps
 
-    def generate_epidemic_network(self, network_generation_method, **kwargs) -> nx.Graph:
-        self.G = network_generation_method(**kwargs)
+        self.daily_cases = []
 
-        if "D" in kwargs.keys():
-            self.D = kwargs["D"]
-        if "k" in kwargs.keys():
-            self.k = kwargs["k"]
-        self.p = kwargs["p"]
-
-        self.network_gen_method = network_generation_method.__name__
-        self.network_gen_parameters = str(kwargs)
-        nx.set_node_attributes(self.G, values="susceptible", name="status")
-        return self
-
-    def simulate(self):
-        self.distribute_initial_infection(self.number_of_initial_infected)
-        day = 1
-        if self.save_steps:
+        self.generate_epidemic_network(number_of_nodes, D, p)
+        self.distribute_initial_infection(number_of_initial_infected)
+        if save_steps:
             plt.figure(figsize=(5, 5))
+
+        day = 1
         while True:
-            # infected = self.get_by_status("infected")
-            self.interact(day, self.save_steps)
-            self.count_cumulative_cases()
             self.count_daily_cases()
             self.update_disease_progress()
+
+            infected = self.get_by_status("infected")
+            self.interact(day, save_steps)
             day += 1
-            if day > 100:
+            if not infected:
                 break
-                # if not infected:
-                #     break
         plt.close()
-        self.plot_cases()
+
+    def generate_epidemic_network(self, number_of_nodes, D, p) -> nx.Graph:
+        self.G = poisson_small_world_graph(number_of_nodes, D, p)
+        nx.set_node_attributes(self.G, values="susceptible", name="status")
 
     def interact(self, day, save_steps=False):
+        if save_steps:
+            self.draw(day)
         infected = self.get_by_status("infected")
         infected_person_contacts = self.G.edges(infected)
         susceptibles = (person2 for person1,
@@ -79,12 +65,10 @@ class Epidemic_Network:
                 nx.set_node_attributes(
                     self.G, values={susceptible_person: self.infected})
 
-        if save_steps:
-            self.draw(day)
-
     def update_disease_progress(self):
         def parse_attr(attributes):
             if attributes["days_with_disease"] >= self.days_until_recovery:
+                attributes.pop("days_with_disease", None)
                 return self.recovered
 
             attributes["days_with_disease"] += 1
@@ -111,52 +95,10 @@ class Epidemic_Network:
                     self.G, "status").items()
                 if person_status == status]
 
-    def count_cumulative_cases(self):
-        self.cumulative_cases.append(len(self.get_by_status(
-            "infected")) + len(self.get_by_status("recovered")))
-
     def count_daily_cases(self):
-        today_cases = len([attributes for person, attributes in self.G.nodes(data=True)
-                           if attributes["status"] == "infected" and
-                           attributes["days_with_disease"] == 1
-                           ])
-        self.daily_cases.append(today_cases)
-
-    def plot_cases(self):
-        _, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=True, dpi=300)
-
-        ax1.set_ylabel("Cumulative cases")
-        ax2.set_ylabel("Daily cases")
-        ax2.set_xlabel("Days")
-        # ax1.set_xlim(-0.1, len(self.daily_cases))
-        ax1.plot(self.cumulative_cases, color="black", label="Network")
-        # ax2.plot(self.daily_cases, 'black', marker="o")
-        ax2.bar(list(range(len(self.daily_cases))),
-                self.daily_cases, color="red", edgecolor="black")
-        if self.D:
-            ax1.set_title(
-                f"N={self.G.number_of_nodes()}, D={self.D}, r={self.infection_rate}, $\\epsilon={self.p}$")
-            beta = self.infection_rate * self.D
-        if self.k:
-            ax1.set_title(
-                f"N={self.G.number_of_nodes()}, k={self.k}, r={self.infection_rate}, $\\epsilon={self.p}$")
-            beta = self.infection_rate * self.k
-
-        gamma = 1/self.days_until_recovery
-        t = np.linspace(0, 100, 100)
-        _, I, R = sir_model_dynamics(
-            N=self.G.number_of_nodes(),
-            I0=self.number_of_initial_infected,
-            beta=beta,
-            gamma=gamma,
-            t=t
-        )
-        ax1.plot(R + I, 'g', label="Recovered + Infected (SIR)")
-        ax1.legend()
-        sulfix = self.parse_output_file_name_sulfix()
-        filename = f"cases_vs_days_{sulfix}.png"
-        plt.savefig(filename)
-        plt.clf()
+        infected_people = nx.get_node_attributes(self.G, "days_with_disease")
+        number_of_days_with_infection = list(infected_people.values())
+        self.daily_cases.append(number_of_days_with_infection.count(1))
 
     def draw(self, day):
         plt.title(f"Day: {day}")
@@ -178,24 +120,51 @@ class Epidemic_Network:
         plt.savefig(f"{day}-evolution.png")
         plt.clf()
 
-    def parse_output_file_name_sulfix(self):
-        self.network_gen_parameters = self.network_gen_parameters.replace(
-            "{", "").replace("}", "").replace(", ", "_") \
-            .replace(": ", "=").replace("'", "")
-        return f"type={self.network_gen_method}_{self.network_gen_parameters}_r={self.infection_rate}_d={self.days_until_recovery}_i0={self.number_of_initial_infected}"
+    def get_daily_cases(self):
+        return self.daily_cases
 
 
-# Epidemic_Network(
-#     infection_rate=0.1,
-#     days_until_recovery=6,
-#     number_of_initial_infected=10,
-# ).generate_epidemic_network(
-#     nx.watts_strogatz_graph, n=1000, k=10, p=0.1).simulate()
+if __name__ == "__main__":
+    def plot(n, D, p, r, d, i0):
+        network = Epidemic_Network(
+            number_of_nodes=n,
+            D=D,
+            p=p,
+            infection_rate=r,
+            days_until_recovery=d,
+            number_of_initial_infected=i0
+        )
 
+        daily_cases = network.get_daily_cases()
+        cumulative_cases = np.cumsum(daily_cases)
 
-Epidemic_Network(
-    infection_rate=0.1,
-    days_until_recovery=6,
-    number_of_initial_infected=10,
-).generate_epidemic_network(
-    poisson_small_world_graph, n=1000, D=3, p=0.1).simulate()
+        _, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=True, dpi=300)
+
+        ax1.set_ylabel("Cumulative cases")
+        ax2.set_ylabel("Daily cases")
+        ax2.set_xlabel("Days")
+        ax1.plot(cumulative_cases, color="black", label="Network")
+        ax2.bar(list(range(len(daily_cases))),
+                daily_cases, color="red", edgecolor="black")
+        ax1.set_title(
+            f"N={n}, D={D}, r={r}, $\\epsilon={p}$")
+
+        beta = r * D
+        gamma = 1/d
+
+        t = np.linspace(0, 100, 100)
+        _, I, R = sir_model_dynamics(
+            N=n,
+            I0=i0,
+            beta=beta,
+            gamma=gamma,
+            t=t
+        )
+        ax1.plot(R + I, 'g', label="Recovered + Infected (SIR)")
+        ax1.legend()
+        sulfix = f"type=poisson_small_world_graph_n={n}_D={D}_p={p}_r={r}_d={d}_i0={i0}"
+        filename = f"cases_vs_days_{sulfix}.png"
+        plt.savefig(filename)
+        plt.close()
+
+    plot(n=1000, D=3, p=0.1, r=0.1, d=6, i0=10)
