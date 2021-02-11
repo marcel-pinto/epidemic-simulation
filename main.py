@@ -1,8 +1,7 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from random import choices, sample
-from poisson_small_world_network import poisson_small_world_graph
-from sir import sir_model_dynamics
+from .poisson_small_world_network import poisson_small_world_graph
 import numpy as np
 
 
@@ -22,7 +21,8 @@ class Epidemic_Network:
                  number_of_initial_infected,
                  number_of_nodes,
                  D,
-                 p,
+                 epsilon,
+                 max_days=100,
                  save_steps=False,
                  ):
         self.infection_rate = infection_rate
@@ -30,25 +30,25 @@ class Epidemic_Network:
 
         self.daily_cases = []
 
-        self.generate_epidemic_network(number_of_nodes, D, p)
+        self.generate_epidemic_network(number_of_nodes, D, epsilon)
         self.distribute_initial_infection(number_of_initial_infected)
         if save_steps:
             plt.figure(figsize=(5, 5))
 
         day = 1
-        while True:
+        while day <= max_days:
             self.count_daily_cases()
             self.update_disease_progress()
 
-            infected = self.get_by_status("infected")
+            # infected = self.get_by_status("infected")
             self.interact(day, save_steps)
             day += 1
-            if not infected:
-                break
+            # if not infected:
+            #     break
         plt.close()
 
-    def generate_epidemic_network(self, number_of_nodes, D, p) -> nx.Graph:
-        self.G = poisson_small_world_graph(number_of_nodes, D, p)
+    def generate_epidemic_network(self, number_of_nodes, D, epsilon) -> nx.Graph:
+        self.G = poisson_small_world_graph(number_of_nodes, D, epsilon)
         nx.set_node_attributes(self.G, values="susceptible", name="status")
 
     def interact(self, day, save_steps=False):
@@ -125,11 +125,13 @@ class Epidemic_Network:
 
 
 if __name__ == "__main__":
-    def plot(n, D, p, r, d, i0):
+    from sir import sir_model_dynamics
+
+    def plot(n, D, epsilon, r, d, i0):
         network = Epidemic_Network(
             number_of_nodes=n,
             D=D,
-            p=p,
+            epsilon=epsilon,
             infection_rate=r,
             days_until_recovery=d,
             number_of_initial_infected=i0
@@ -147,7 +149,7 @@ if __name__ == "__main__":
         ax2.bar(list(range(len(daily_cases))),
                 daily_cases, color="red", edgecolor="black")
         ax1.set_title(
-            f"N={n}, D={D}, r={r}, $\\epsilon={p}$")
+            f"N={n}, D={D}, r={r}, $\\epsilon={epsilon}$")
 
         beta = r * D
         gamma = 1/d
@@ -160,11 +162,19 @@ if __name__ == "__main__":
             gamma=gamma,
             t=t
         )
-        ax1.plot(R + I, 'g', label="Recovered + Infected (SIR)")
+        ax1.plot(R, 'g', label="Recovered + Infected (SIR)")
         ax1.legend()
-        sulfix = f"type=poisson_small_world_graph_n={n}_D={D}_p={p}_r={r}_d={d}_i0={i0}"
+        sulfix = f"type=poisson_small_world_graph_n={n}_D={D}_epsilon={epsilon}_r={r}_d={d}_i0={i0}"
         filename = f"cases_vs_days_{sulfix}.png"
         plt.savefig(filename)
         plt.close()
 
-    plot(n=1000, D=3, p=0.1, r=0.1, d=6, i0=10)
+        with open(f'daily_cases_{sulfix}.txt', 'w') as f:
+            for day, cases in enumerate(daily_cases):
+                f.write(f"{day} {cases}\n")
+
+        with open(f'cumulative_cases_{sulfix}.txt', 'w') as f:
+            for day, cases in enumerate(cumulative_cases):
+                f.write(f"{day} {cases}\n")
+    plot(n=1000, D=3, epsilon=0.1, r=0.1, d=6, i0=10)
+    plot(n=1000, D=8, epsilon=0.1, r=0.1, d=6, i0=10)
