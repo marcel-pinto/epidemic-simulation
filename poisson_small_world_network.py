@@ -64,7 +64,7 @@ def __create_edges(number_of_nodes: int, lam: int, rewiring_probability: float):
     return list(connectivity_without_repeated_edges)
 
 
-def poisson_small_world_graph(n: int, D: int, p: float) -> nx.Graph:
+def poisson_small_world_graph(n: int, D: int, p: float, Graph_to_update: nx.Graph = None) -> nx.Graph:
     """Returns a Poisson small-world graph.
 
     Parameters
@@ -78,9 +78,14 @@ def poisson_small_world_graph(n: int, D: int, p: float) -> nx.Graph:
     p : float
         The probability of rewiring each edge
 
+    Graph_to_update: nx.Graph
+        A graph to update the degree distribution following Poisson distribution.
     """
-    G = nx.Graph()
-    G.add_nodes_from(list(range(n)))
+    if Graph_to_update:
+        G = Graph_to_update.copy()
+    else:
+        G = nx.Graph()
+        G.add_nodes_from(list(range(n)))
     edges = __create_edges(n, D, p)
     G.add_edges_from(edges)
 

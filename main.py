@@ -1,8 +1,30 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from random import choices, sample
-from .poisson_small_world_network import poisson_small_world_graph
+from poisson_small_world_network import poisson_small_world_graph
 import numpy as np
+from typing import TypedDict, Optional
+
+Parameters = TypedDict('Parameters',
+                       {
+                           "number_of_nodes": int,
+                           "D": int,
+                           "epsilon": float,
+                           "infection_rate": float,
+                           "days_infectious": int,
+                           "number_of_initial_infected": int,
+                       })
+
+
+NpiParameters = TypedDict('NpiParameters',
+                          {
+                              "D": int,
+                              "epsilon": float,
+                              "infection_rate": float,
+                              "days_infectious": float
+                          },
+                          total=False
+                          )
 
 
 class Epidemic_Network:
@@ -16,22 +38,23 @@ class Epidemic_Network:
     G: nx.Graph
 
     def __init__(self,
-                 infection_rate,
-                 days_until_recovery,
-                 number_of_initial_infected,
-                 number_of_nodes,
-                 D,
-                 epsilon,
+                 parameters: Parameters,
+                 npi_parameters: NpiParameters = None,
                  max_days=100,
                  save_steps=False,
                  ):
-        self.infection_rate = infection_rate
-        self.days_until_recovery = days_until_recovery
+
+        self.parameters = parameters
+        self.npi_parameters = npi_parameters
 
         self.daily_cases = []
 
-        self.generate_epidemic_network(number_of_nodes, D, epsilon)
-        self.distribute_initial_infection(number_of_initial_infected)
+        self.generate_epidemic_network(
+            self.parameters["number_of_nodes"],
+            self.parameters["D"],
+            self.parameters["epsilon"])
+        self.distribute_initial_infection(
+            self.parameters["number_of_initial_infected"])
         if save_steps:
             plt.figure(figsize=(5, 5))
 
@@ -43,6 +66,9 @@ class Epidemic_Network:
             # infected = self.get_by_status("infected")
             self.interact(day, save_steps)
             day += 1
+            if self.npi_parameters and self.npi_parameters['npi start at day'] == day:
+                print(f"Applying NPI at day {day}")
+                self.__apply_NPI()
             # if not infected:
             #     break
         plt.close()
@@ -67,7 +93,7 @@ class Epidemic_Network:
 
     def update_disease_progress(self):
         def parse_attr(attributes):
-            if attributes["days_with_disease"] >= self.days_until_recovery:
+            if attributes["days_with_disease"] >= self.parameters["days_infectious"]:
                 attributes.pop("days_with_disease", None)
                 return self.recovered
 
@@ -81,7 +107,8 @@ class Epidemic_Network:
 
     def infection_occurred(self):
         return choices([True, False],
-                       weights=[self.infection_rate, 1 - self.infection_rate])[0]
+                       weights=[self.parameters["infection_rate"],
+                                1 - self.parameters["infection_rate"]])[0]
 
     def distribute_initial_infection(self, number_of_infections: int) -> None:
         whole_network = tuple(self.G.nodes())
@@ -123,18 +150,36 @@ class Epidemic_Network:
     def get_daily_cases(self):
         return self.daily_cases
 
+    def __make_structural_changes(self):
+        self.G = poisson_small_world_graph(
+            self.G.number_of_nodes(),
+            self.parameters['D'],
+            self.parameters['epsilon'],
+            self.G)
+
+    def __apply_NPI(self):
+        self.parameters = {**self.parameters, **self.npi_parameters}
+        if any(k in self.npi_parameters for k in ('D', 'epsilon')):
+            self.__make_structural_changes()
+
 
 if __name__ == "__main__":
-    from sir import sir_model_dynamics
 
     def plot(n, D, epsilon, r, d, i0):
         network = Epidemic_Network(
-            number_of_nodes=n,
-            D=D,
-            epsilon=epsilon,
-            infection_rate=r,
-            days_until_recovery=d,
-            number_of_initial_infected=i0
+            parameters={
+                "number_of_nodes": n,
+                "D": D,
+                "epsilon": epsilon,
+                "infection_rate": r,
+                "days_infectious": d,
+                "number_of_initial_infected": i0,
+            },
+            npi_parameters={
+                "npi start at day": 10,
+                "D": 8,
+                "epsilon": 0
+            }
         )
 
         daily_cases = network.get_daily_cases()
@@ -151,30 +196,10 @@ if __name__ == "__main__":
         ax1.set_title(
             f"N={n}, D={D}, r={r}, $\\epsilon={epsilon}$")
 
-        beta = r * D
-        gamma = 1/d
-
-        t = np.linspace(0, 100, 100)
-        _, I, R = sir_model_dynamics(
-            N=n,
-            I0=i0,
-            beta=beta,
-            gamma=gamma,
-            t=t
-        )
-        ax1.plot(R, 'g', label="Recovered + Infected (SIR)")
         ax1.legend()
         sulfix = f"type=poisson_small_world_graph_n={n}_D={D}_epsilon={epsilon}_r={r}_d={d}_i0={i0}"
         filename = f"cases_vs_days_{sulfix}.png"
         plt.savefig(filename)
         plt.close()
 
-        with open(f'daily_cases_{sulfix}.txt', 'w') as f:
-            for day, cases in enumerate(daily_cases):
-                f.write(f"{day} {cases}\n")
-
-        with open(f'cumulative_cases_{sulfix}.txt', 'w') as f:
-            for day, cases in enumerate(cumulative_cases):
-                f.write(f"{day} {cases}\n")
-    plot(n=1000, D=3, epsilon=0.1, r=0.1, d=6, i0=10)
-    plot(n=1000, D=8, epsilon=0.1, r=0.1, d=6, i0=10)
+    plot(n=1000, D=3, epsilon=0.3, r=0.1, d=6, i0=10)
