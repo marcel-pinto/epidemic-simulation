@@ -1,18 +1,18 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from random import choices, sample
-from poisson_small_world_network import poisson_small_world_graph
+from .poisson_small_world_network import poisson_small_world_graph
 import numpy as np
 from typing import TypedDict, Optional
 
 Parameters = TypedDict('Parameters',
                        {
-                           "number_of_nodes": int,
+                           "n": int,
                            "D": int,
                            "epsilon": float,
-                           "infection_rate": float,
-                           "days_infectious": int,
-                           "number_of_initial_infected": int,
+                           "r": float,
+                           "d": int,
+                           "i0": int,
                        })
 
 
@@ -20,8 +20,9 @@ NpiParameters = TypedDict('NpiParameters',
                           {
                               "D": int,
                               "epsilon": float,
-                              "infection_rate": float,
-                              "days_infectious": float
+                              "r": float,
+                              "d": float,
+                              "npi_start_day": int
                           },
                           total=False
                           )
@@ -50,11 +51,11 @@ class Epidemic_Network:
         self.daily_cases = []
 
         self.generate_epidemic_network(
-            self.parameters["number_of_nodes"],
+            self.parameters["n"],
             self.parameters["D"],
             self.parameters["epsilon"])
         self.distribute_initial_infection(
-            self.parameters["number_of_initial_infected"])
+            self.parameters["i0"])
         if save_steps:
             plt.figure(figsize=(5, 5))
 
@@ -66,8 +67,7 @@ class Epidemic_Network:
             # infected = self.get_by_status("infected")
             self.interact(day, save_steps)
             day += 1
-            if self.npi_parameters and self.npi_parameters['npi start at day'] == day:
-                print(f"Applying NPI at day {day}")
+            if self.npi_parameters and self.npi_parameters['npi_start_day'] == day:
                 self.__apply_NPI()
             # if not infected:
             #     break
@@ -93,7 +93,7 @@ class Epidemic_Network:
 
     def update_disease_progress(self):
         def parse_attr(attributes):
-            if attributes["days_with_disease"] >= self.parameters["days_infectious"]:
+            if attributes["days_with_disease"] >= self.parameters["d"]:
                 attributes.pop("days_with_disease", None)
                 return self.recovered
 
@@ -107,8 +107,8 @@ class Epidemic_Network:
 
     def infection_occurred(self):
         return choices([True, False],
-                       weights=[self.parameters["infection_rate"],
-                                1 - self.parameters["infection_rate"]])[0]
+                       weights=[self.parameters["r"],
+                                1 - self.parameters["r"]])[0]
 
     def distribute_initial_infection(self, number_of_infections: int) -> None:
         whole_network = tuple(self.G.nodes())
@@ -168,15 +168,15 @@ if __name__ == "__main__":
     def plot(n, D, epsilon, r, d, i0):
         network = Epidemic_Network(
             parameters={
-                "number_of_nodes": n,
+                "n": n,
                 "D": D,
                 "epsilon": epsilon,
-                "infection_rate": r,
-                "days_infectious": d,
-                "number_of_initial_infected": i0,
+                "r": r,
+                "d": d,
+                "i0": i0,
             },
             npi_parameters={
-                "npi start at day": 10,
+                "npi_start_day": 10,
                 "D": 8,
                 "epsilon": 0
             }
