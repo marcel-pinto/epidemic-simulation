@@ -83,6 +83,7 @@ def poisson_small_world_graph(n: int, D: int, p: float, Graph_to_update: nx.Grap
     """
     if Graph_to_update:
         G = Graph_to_update.copy()
+        G.remove_edges_from(G.edges())
     else:
         G = nx.Graph()
         G.add_nodes_from(list(range(n)))
@@ -100,5 +101,6 @@ if __name__ == "__main__":
         nx.draw_networkx(graph, pos=pos)
         plt.show()
 
-    H = poisson_small_world_graph(50, 8, .5)
+    G = nx.watts_strogatz_graph(50, 2, 0.1)
+    H = poisson_small_world_graph(50, 8, .5, G)
     __draw_circular(H)
