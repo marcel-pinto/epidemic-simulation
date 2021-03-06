@@ -1,7 +1,8 @@
+# pylint: disable=relative-beyond-top-level,
 import networkx as nx
 import matplotlib.pyplot as plt
 from random import choices, sample
-from .poisson_small_world_network import poisson_small_world_graph
+from .network_generator.poisson_small_world_network import poisson_small_world_graph
 import numpy as np
 from typing import TypedDict, Optional
 
@@ -63,14 +64,10 @@ class Epidemic_Network:
         while day <= max_days:
             self.count_daily_cases()
             self.update_disease_progress()
-
-            # infected = self.get_by_status("infected")
             self.interact(day, save_steps)
             day += 1
             if self.npi_parameters and self.npi_parameters['npi_start_day'] == day:
                 self.__apply_NPI()
-            # if not infected:
-            #     break
         plt.close()
 
     def generate_epidemic_network(self, number_of_nodes, D, epsilon) -> nx.Graph:
@@ -176,9 +173,11 @@ if __name__ == "__main__":
                 "i0": i0,
             },
             npi_parameters={
-                "npi_start_day": 10,
-                "D": 8,
-                "epsilon": 0
+                "npi_start_day": 140,
+                "D": 2,
+                "epsilon": 0,
+                "r": 0,
+                "d": 6
             }
         )
 
@@ -202,4 +201,4 @@ if __name__ == "__main__":
         plt.savefig(filename)
         plt.close()
 
-    plot(n=1000, D=3, epsilon=0.3, r=0.1, d=6, i0=10)
+    plot(n=10000, D=5, epsilon=0.1, r=0.018, d=19, i0=100)
