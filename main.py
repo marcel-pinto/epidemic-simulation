@@ -84,7 +84,7 @@ class Epidemic_Network:
             plt.figure(figsize=(5, 5))
 
         day = 1
-        while max_days <= max_days:
+        while day <= max_days:
             self.count_daily_cases()
             self.update_disease_progress()
             self.interact(day, save_steps)
