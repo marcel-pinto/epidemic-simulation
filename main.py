@@ -1,7 +1,7 @@
 # pylint: disable=relative-beyond-top-level,
 import networkx as nx
 import matplotlib.pyplot as plt
-from random import choices, sample
+import random
 import numpy as np
 from typing import TypedDict, Optional
 from network_generator import watts_strogatz_clique_graph
@@ -56,12 +56,16 @@ class Epidemic_Network:
         npi_parameters: NpiParameters = None,
         max_days=100,
         save_steps=False,
+        random_state=None,
     ):
 
         self.parameters = parameters
         self.npi_parameters = npi_parameters
 
+        self.random_state = random_state
         self.daily_cases = []
+
+        random.setstate(random_state)
 
         if "household_distribution" not in self.parameters:
             self.generate_epidemic_network(
@@ -124,7 +128,7 @@ class Epidemic_Network:
         nx.set_node_attributes(self.G, values=updated_infected)
 
     def infection_occurred(self, connection_type: str) -> bool:
-        return choices(
+        return random.choices(
             [True, False],
             weights=[
                 self.parameters["r"][connection_type],
@@ -134,7 +138,7 @@ class Epidemic_Network:
 
     def distribute_initial_infection(self, number_of_infections: int) -> None:
         whole_network = tuple(self.G.nodes())
-        random_infected_people = sample(whole_network, number_of_infections)
+        random_infected_people = random.sample(whole_network, number_of_infections)
         for person in random_infected_people:
             nx.set_node_attributes(self.G, values={person: self.infected})
 
@@ -210,6 +214,9 @@ class Epidemic_Network:
         self.parameters = {**self.parameters, **self.npi_parameters}
         if any(k in self.npi_parameters for k in ("D", "epsilon")):
             self.__make_structural_changes()
+
+    def get_random_state(self):
+        return random.getstate()
 
 
 if __name__ == "__main__":
