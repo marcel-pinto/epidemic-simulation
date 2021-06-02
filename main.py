@@ -65,7 +65,8 @@ class Epidemic_Network:
         self.random_state = random_state
         self.daily_cases = []
 
-        random.setstate(random_state)
+        if random_state:
+            random.setstate(random_state)
 
         if "household_distribution" not in self.parameters:
             self.generate_epidemic_network(
@@ -83,7 +84,7 @@ class Epidemic_Network:
             plt.figure(figsize=(5, 5))
 
         day = 1
-        while day <= max_days:
+        while max_days <= max_days:
             self.count_daily_cases()
             self.update_disease_progress()
             self.interact(day, save_steps)
@@ -245,6 +246,7 @@ if __name__ == "__main__":
 
         network = Epidemic_Network(
             parameters=parameters,
+            max_days=100
             # npi_parameters={"npi_start_day": 20, "D": 2, "epsilon": 0, "r": 0, "d": 6},
         )
 
